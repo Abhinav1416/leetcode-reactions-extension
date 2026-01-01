@@ -1,4 +1,3 @@
-// src/App.tsx
 import { useEffect, useState } from "react";
 import { DEFAULT_GIFS } from "./constants";
 import { GifItem } from "./types";
@@ -13,13 +12,12 @@ function App() {
 
   useEffect(() => {
     chrome.storage.sync.get(["gifs", "masterSwitch"], (result) => {
-      if (result.gifs) {
+      if (Array.isArray(result.gifs) && result.gifs.length > 0) {
         setGifs(result.gifs as GifItem[]);
       } else {
         setGifs(DEFAULT_GIFS);
         chrome.storage.sync.set({ gifs: DEFAULT_GIFS });
       }
-
       if (result.masterSwitch !== undefined) {
         setMasterSwitch(result.masterSwitch as boolean);
       } else {
@@ -79,6 +77,13 @@ function App() {
     setNewGifName("");
     setNewGifUrl("");
     setError("");
+  };
+
+  const handleResetDefaults = () => {
+    if (confirm("Reset all GIFs to default?")) {
+        setGifs(DEFAULT_GIFS);
+        saveToStorage(DEFAULT_GIFS, masterSwitch);
+    }
   };
 
   return (
@@ -156,7 +161,11 @@ function App() {
         {error && <p className="error-msg">{error}</p>}
       </div>
 
-      <div className="footer">v1.1 • Built for LeetCoders</div>
+      <div className="footer">
+          <span style={{cursor: "pointer", textDecoration: "underline"}} onClick={handleResetDefaults}>Reset to Defaults</span>
+          <br/>
+          v1.1 • Built for LeetCoders
+      </div>
     </div>
   );
 }

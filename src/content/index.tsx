@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { DEFAULT_GIFS } from "../constants";
 import { GifItem } from "../types";
 
+
 const Overlay = ({ url, onClose }: { url: string; onClose: () => void }) => {
   return (
     <div
@@ -82,7 +83,7 @@ function showSuccessOverlay() {
         root.unmount();
         container.remove();
       }
-    }, 4000);
+    }, 10000);
   });
 }
 
@@ -113,4 +114,4 @@ setInterval(() => {
 
 }, 1000);
 
-console.log("LeetCode Reactions: v1.1 Polling optimized with state check");
+console.log("LeetCode Reactions: v1.1 Polling (10s display)");
