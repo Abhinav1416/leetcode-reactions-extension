@@ -1,112 +1,162 @@
-import { useEffect, useState } from 'react';
-import './App.css';
-
-interface Setting {
-  url: string;
-  enabled: boolean;
-}
-
-const DEFAULT: Setting = { 
-  url: "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExejIweXFvem5nNHZrczBjODI2bWF2ZmMxaDU5MWY4ODB2YmtrZXNlNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/fo2db15Hus2pFvxoHq/giphy.gif", 
-  enabled: true 
-};
+// src/App.tsx
+import { useEffect, useState } from "react";
+import { DEFAULT_GIFS } from "./constants";
+import { GifItem } from "./types";
+import "./App.css";
 
 function App() {
-  const [setting, setSetting] = useState<Setting>(DEFAULT);
-  const [status, setStatus] = useState('');
-  
+  const [masterSwitch, setMasterSwitch] = useState(true);
+  const [gifs, setGifs] = useState<GifItem[]>([]);
+  const [newGifUrl, setNewGifUrl] = useState("");
+  const [newGifName, setNewGifName] = useState("");
+  const [error, setError] = useState("");
+
   useEffect(() => {
-    if (chrome.storage) {
-      chrome.storage.sync.get(['ac'], (result) => {
-        if (result.ac) {
-           if (typeof result.ac === 'string') {
-             setSetting({ url: result.ac, enabled: true });
-           } else {
-             setSetting(result.ac as Setting);
-           }
-        }
-      });
-    }
+    chrome.storage.sync.get(["gifs", "masterSwitch"], (result) => {
+      if (result.gifs) {
+        setGifs(result.gifs as GifItem[]);
+      } else {
+        setGifs(DEFAULT_GIFS);
+        chrome.storage.sync.set({ gifs: DEFAULT_GIFS });
+      }
+
+      if (result.masterSwitch !== undefined) {
+        setMasterSwitch(result.masterSwitch as boolean);
+      } else {
+        setMasterSwitch(true);
+      }
+    });
   }, []);
 
-  const handleUrlChange = (val: string) => {
-    setSetting(prev => ({ ...prev, url: val }));
+  const saveToStorage = (updatedGifs: GifItem[], updatedSwitch: boolean) => {
+    chrome.storage.sync.set({
+      gifs: updatedGifs,
+      masterSwitch: updatedSwitch,
+    });
   };
 
-  const handleToggle = () => {
-    setSetting(prev => ({ ...prev, enabled: !prev.enabled }));
+  const handleMasterToggle = () => {
+    const newVal = !masterSwitch;
+    setMasterSwitch(newVal);
+    saveToStorage(gifs, newVal);
   };
 
-  const handleReset = () => {
-    setSetting(DEFAULT);
+  const handleGifToggle = (id: string) => {
+    const updatedGifs = gifs.map((g) =>
+      g.id === id ? { ...g, enabled: !g.enabled } : g
+    );
+    setGifs(updatedGifs);
+    saveToStorage(updatedGifs, masterSwitch);
+  };
 
-    if (chrome.storage) {
-      chrome.storage.sync.set({ ac: DEFAULT }, () => {
-        setStatus('✅ Defaults Restored & Saved!');
-        setTimeout(() => setStatus(''), 2000);
-      });
-    } else {
-      setStatus('Dev: Defaults Restored');
+  const handleDelete = (id: string) => {
+    const updatedGifs = gifs.filter((g) => g.id !== id);
+    setGifs(updatedGifs);
+    saveToStorage(updatedGifs, masterSwitch);
+  };
+
+  const handleAdd = () => {
+    if (!newGifUrl || !newGifName) {
+      setError("Please fill both fields");
+      return;
     }
-  };
-
-  const handleSave = () => {
-    if (chrome.storage) {
-      chrome.storage.sync.set({ ac: setting }, () => {
-        setStatus('✅ Settings Saved!');
-        setTimeout(() => setStatus(''), 2000);
-      });
-    } else {
-      setStatus('Dev Mode: Saved');
+    if (gifs.length >= 10) {
+      setError("Max 10 GIFs allowed!");
+      return;
     }
+
+    const newGif: GifItem = {
+      id: Date.now().toString(),
+      name: newGifName,
+      url: newGifUrl,
+      enabled: true,
+      isDefault: false,
+    };
+
+    const updatedGifs = [...gifs, newGif];
+    setGifs(updatedGifs);
+    saveToStorage(updatedGifs, masterSwitch);
+    setNewGifName("");
+    setNewGifUrl("");
+    setError("");
   };
 
   return (
-    <div className="card">
-      <h2>LeetCode Reactions ⚙️</h2>
-      
-      <div className="input-group">
-        <div className="header-row">
-          <label>Accepted (AC)</label>
-          <div className="toggle-wrapper">
-            <span className="toggle-label">{setting.enabled ? 'ON' : 'OFF'}</span>
-            <input 
-              type="checkbox" 
-              className="toggle-check"
-              checked={setting.enabled}
-              onChange={handleToggle}
-            />
-          </div>
-        </div>
-        
-        {setting.enabled && (
-          <input 
-            type="text" 
-            value={setting.url} 
-            onChange={(e) => handleUrlChange(e.target.value)}
-            placeholder="Paste GIF URL..."
+    <div className="container">
+      <header>
+        <h2>LeetCode Reactions</h2>
+        <label className="toggle-label">
+          <span>{masterSwitch ? "Enabled" : "Disabled"}</span>
+          <input
+            type="checkbox"
+            checked={masterSwitch}
+            onChange={handleMasterToggle}
+            className="master-toggle"
           />
-        )}
+        </label>
+      </header>
+
+      <div className="gif-list">
+        {gifs.map((gif) => (
+          <div key={gif.id} className="gif-card">
+            <div className="gif-info">
+              <input
+                type="checkbox"
+                checked={gif.enabled}
+                onChange={() => handleGifToggle(gif.id)}
+              />
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span className="gif-name" title={gif.name}>
+                  {gif.name}
+                </span>
+                {gif.isDefault && <span className="badge">Default</span>}
+              </div>
+            </div>
+            <button
+              onClick={() => handleDelete(gif.id)}
+              className="delete-btn"
+              title="Delete GIF"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        ))}
       </div>
 
-      <div className="footer" style={{ display: 'flex', gap: '10px' }}>
-        <button onClick={handleSave} style={{ flex: 2 }}>
-          Save Settings
+      <div className="add-section">
+        <input
+          type="text"
+          className="input-field"
+          placeholder="GIF Name (e.g. My Anime)"
+          value={newGifName}
+          onChange={(e) => setNewGifName(e.target.value)}
+        />
+        <input
+          type="text"
+          className="input-field"
+          placeholder="GIF URL (https://...)"
+          value={newGifUrl}
+          onChange={(e) => setNewGifUrl(e.target.value)}
+        />
+        <button onClick={handleAdd} className="add-btn">
+          Add Custom GIF
         </button>
-        
-        <button 
-          onClick={handleReset} 
-          style={{ 
-            flex: 1, 
-            backgroundColor: '#757575', 
-            fontSize: '0.8rem' 
-          }}
-        >
-          Reset
-        </button>
+        {error && <p className="error-msg">{error}</p>}
       </div>
-      
-      {status && <p className="status">{status}</p>}
+
+      <div className="footer">v1.1 • Built for LeetCoders</div>
     </div>
   );
 }
